@@ -28,6 +28,17 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   name: { type: String },
 })
+
+// hash the password
+UserSchema.methods.generateHash = function (password) {
+  return bcrypt.hashSync(password, bcrypt.genSaltSync(8), null)
+}
+
+// checking if password is valid
+UserSchema.methods.validPassword = function (password) {
+  return bcrypt.compareSync(password, this.password)
+}
+
 const User = mongoose.model('User', UserSchema)
 
 const PostSchema = new mongoose.Schema({
@@ -45,6 +56,26 @@ const jwtSecret = Math.random().toString(36).substring(7)
 
 // Routes
 
+// Register Endpoint
+app.post('/register', function (req, res) {
+  console.log('req body', req.body)
+  if (!req.body.email || !req.body.name || !req.body.password) {
+    return res.status(401).send('missing body!!!! call the police!!!!!')
+  }
+  const { email, name, password } = req.body
+  var new_user = new User({
+    email: email,
+    name: name,
+  })
+  try {
+    new_user.password = new_user.generateHash(password)
+    new_user.save()
+    return res.status(200).json({ message: 'User successfully created!' })
+  } catch (error) {
+    res.status(500).send('Server Error')
+  }
+})
+
 // Login endpoint
 app.post('/login', async (req, res) => {
   const { email, password } = req.body
@@ -53,9 +84,9 @@ app.post('/login', async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
     }
-    const isMatch = await bcrypt.compare(password, user.password)
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' })
+
+    if (!user.validPassword(password)) {
+      return res.status(500).json({ message: 'Invalid credentials' })
     }
 
     // JWT payload
