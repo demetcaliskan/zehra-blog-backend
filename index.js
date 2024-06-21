@@ -109,6 +109,20 @@ app.post('/login', async (req, res) => {
   }
 })
 
+function checkAuth(req, res, next) {
+  const token = req.header('Authorization')
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, jwtSecret)
+      console.log('decoded', decoded)
+      req.user = decoded.user // Attach user information to request object
+    } catch (error) {
+      console.log('error', error)
+    }
+  }
+  next()
+}
+
 // Middleware to verify token
 function auth(req, res, next) {
   const token = req.header('Authorization')
@@ -171,13 +185,24 @@ app.delete('/post/:postId', auth, async (req, res) => {
 })
 
 // Get all posts
-app.get('/post', async (req, res) => {
-  try {
-    const posts = await Post.find().exec()
-    res.json(posts)
-  } catch (err) {
-    console.error(err)
-    res.status(500).send('Server Error')
+app.get('/post', checkAuth, async (req, res) => {
+  console.log('req user', req.user)
+  if (!req.user) {
+    try {
+      const posts = await Post.find({ status: 'published' }).exec()
+      res.json({ posts: posts, message: 'Post list for losers.' })
+    } catch (err) {
+      console.error(err)
+      res.status(500).send('Server Error')
+    }
+  } else {
+    try {
+      const posts = await Post.find().exec()
+      res.json({ posts: posts, message: 'Post list for winners.' })
+    } catch (err) {
+      console.error(err)
+      res.status(500).send('Server Error')
+    }
   }
 })
 
